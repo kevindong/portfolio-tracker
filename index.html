@@ -9,17 +9,38 @@
 		<canvas id="canvas"></canvas>
 	</div>
 	<script>
-		let timeFormat = 'h:mm:ss a';
-		var config = {
-			type: 'line',
+	Chart.defaults.NegativeTransparentLine = Chart.helpers.clone(Chart.defaults.line);
+	Chart.controllers.NegativeTransparentLine = Chart.controllers.line.extend({
+		update: function() {
+			let min = Math.min.apply(null, this.chart.data.datasets[0].data);
+			let max = Math.max.apply(null, this.chart.data.datasets[0].data);
+			let yScale = this.getScaleForId(this.getDataset().yAxisID);
+			let top = yScale.getPixelForValue(max);
+			let zero = yScale.getPixelForValue(0);
+			let bottom = yScale.getPixelForValue(min);
+
+			let ctx = this.chart.chart.ctx;
+			let gradient = ctx.createLinearGradient(0, top, 0, bottom);
+			let ratio = Math.min((zero - top) / (bottom - top), 1);
+			gradient.addColorStop(0, 'rgba(64,255,0,0.4)');
+			gradient.addColorStop(ratio, 'rgba(64,255,0,0.4)');
+			gradient.addColorStop(ratio, 'rgba(255,0,0,1)');
+			gradient.addColorStop(1, 'rgba(255,0,0,1)');
+			this.chart.data.datasets[0].backgroundColor = gradient;
+
+			return Chart.controllers.line.prototype.update.apply(this, arguments);
+		}
+	});
+
+	let timeFormat = 'h:mm:ss a';
+	var config = {
+			type: 'NegativeTransparentLine',
 			data: {
-				labels: [],
+				labels: [moment().toDate()],
 				datasets: [{
 					label: 'Stocks',
-					backgroundColor: 'blue',
-					borderColor: 'blue',
-					data: [],
-					fill: false,
+					data: [Math.random()],
+					yAxisID: 'y-axis-0'
 				}]
 			},
 			options: {
@@ -34,7 +55,8 @@
 							displayFormats: {
 								millisecond: timeFormat
 							},
-							tooltipFormat: timeFormat
+							tooltipFormat: timeFormat,
+							max: moment().toDate()
 						},
 						scaleLabel: {
 							display: true,
@@ -42,6 +64,7 @@
 						}
 					}],
 					yAxes: [{
+						id: 'y-axis-0',
 						scaleLabel: {
 							display: true,
 							labelString: 'Value'
@@ -51,25 +74,24 @@
 			}
 		};
 
-		function update() {
-			let now = moment().toDate();
-			config.data.labels.push(now);
-			config.data.datasets[0].data.push({
-				x: now,
-				y: Math.random()
-			});
-			if (config.data.labels.length > 20) {
-				config.data.labels.shift();
-				config.data.datasets[0].data.shift();
-			}
-			window.chart.update();
-		};
+	function update() {
+		let now = moment().toDate();
+		config.data.labels.push(now);
+		let value = Math.random() - 0.5;
+		config.data.datasets[0].data.push(value);
+		if (config.data.labels.length > 20) {
+			config.data.labels.shift();
+			config.data.datasets[0].data.shift();
+		}
+		config.options.scales.xAxes[0].time.max = now;
+		window.chart.update();
+	};
 
-		window.onload = function() {
-			var ctx = document.getElementById("canvas").getContext("2d");
-			window.chart = new Chart(ctx, config);
-			window.setInterval(update, 5000);
-		};
+	window.onload = function() {
+		let ctx = document.getElementById("canvas").getContext("2d");
+		window.chart = new Chart(ctx, config);
+		window.setInterval(update, 500);
+	}
 	</script>
 </body>
 
