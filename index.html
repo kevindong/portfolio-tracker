@@ -20,6 +20,12 @@
 			let bottom = yScale.getPixelForValue(min);
 
 			let ctx = this.chart.chart.ctx;
+			if (isNaN(top)) {
+				top = 0;
+			}
+			if (isNaN(bottom)) {
+				bottom = 0;
+			}
 			let gradient = ctx.createLinearGradient(0, top, 0, bottom);
 			let ratio = Math.min((zero - top) / (bottom - top), 1);
 			gradient.addColorStop(0, 'rgba(64,255,0,0.4)');
@@ -36,10 +42,10 @@
 	var config = {
 			type: 'NegativeTransparentLine',
 			data: {
-				labels: [moment().toDate()],
+				labels: [],
 				datasets: [{
 					label: 'Stocks',
-					data: [Math.random()],
+					data: [],
 					yAxisID: 'y-axis-0'
 				}]
 			},
