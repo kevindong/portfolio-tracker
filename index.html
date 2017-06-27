@@ -1,0 +1,76 @@
+<html>
+<head>
+	<title>Stocks</title>
+	<script src="moment.js"></script>
+	<script src="Chart.js"></script>
+</head>
+<body>
+	<div style="width:75%; height:75%">
+		<canvas id="canvas"></canvas>
+	</div>
+	<script>
+		let timeFormat = 'h:mm:ss a';
+		var config = {
+			type: 'line',
+			data: {
+				labels: [],
+				datasets: [{
+					label: 'Stocks',
+					backgroundColor: 'blue',
+					borderColor: 'blue',
+					data: [],
+					fill: false,
+				}]
+			},
+			options: {
+				responsive: true,
+				title: {
+					text: 'Stocks'
+				},
+				scales: {
+					xAxes: [{
+						type: 'time',
+						time: {
+							displayFormats: {
+								millisecond: timeFormat
+							},
+							tooltipFormat: timeFormat
+						},
+						scaleLabel: {
+							display: true,
+							labelString: 'Time'
+						}
+					}],
+					yAxes: [{
+						scaleLabel: {
+							display: true,
+							labelString: 'Value'
+						}
+					}]
+				}
+			}
+		};
+
+		function update() {
+			let now = moment().toDate();
+			config.data.labels.push(now);
+			config.data.datasets[0].data.push({
+				x: now,
+				y: Math.random()
+			});
+			if (config.data.labels.length > 20) {
+				config.data.labels.shift();
+				config.data.datasets[0].data.shift();
+			}
+			window.chart.update();
+		};
+
+		window.onload = function() {
+			var ctx = document.getElementById("canvas").getContext("2d");
+			window.chart = new Chart(ctx, config);
+			window.setInterval(update, 5000);
+		};
+	</script>
+</body>
+
+</html>
