@@ -1,14 +1,21 @@
 <html>
 <head>
 	<title>Stocks</title>
-	<script src="moment.js"></script>
-	<script src="Chart.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js" integrity="sha256-1hjUhpc44NwiNg8OwMu2QzJXhD8kcj+sJA3aCQZoUjg=" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.6.0/Chart.min.js" integrity="sha256-SiHXR50l06UwJvHhFY4e5vzwq75vEHH+8fFNpkXePr0=" crossorigin="anonymous"></script>
 </head>
 <body>
-	<div style="width:75%; height:75%">
+	<div id="container">
 		<canvas id="canvas"></canvas>
 	</div>
 	<script>
+	// CONFIG SECTION HERE
+	var updateInterval = 15; // in seconds
+	var datapointsToKeep = 20;
+	var apiKey = '';
+	var ticker = '';
+
+
 	Chart.defaults.NegativeTransparentLine = Chart.helpers.clone(Chart.defaults.line);
 	Chart.controllers.NegativeTransparentLine = Chart.controllers.line.extend({
 		update: function() {
@@ -28,6 +35,9 @@
 			}
 			let gradient = ctx.createLinearGradient(0, top, 0, bottom);
 			let ratio = Math.min((zero - top) / (bottom - top), 1);
+			if (isNaN(ratio) || ratio <= 0) {
+				ratio = 0.00001;
+			}
 			gradient.addColorStop(0, 'rgba(64,255,0,0.4)');
 			gradient.addColorStop(ratio, 'rgba(64,255,0,0.4)');
 			gradient.addColorStop(ratio, 'rgba(255,0,0,1)');
@@ -39,6 +49,7 @@
 	});
 
 	let timeFormat = 'h:mm:ss a';
+	var initialValue = 0;
 	var config = {
 			type: 'NegativeTransparentLine',
 			data: {
@@ -73,7 +84,7 @@
 						id: 'y-axis-0',
 						scaleLabel: {
 							display: true,
-							labelString: 'Value'
+							labelString: 'Difference from...'
 						}
 					}]
 				}
@@ -81,24 +92,92 @@
 		};
 
 	function update() {
-		let now = moment().toDate();
-		config.data.labels.push(now);
-		let value = Math.random() - 0.5;
-		config.data.datasets[0].data.push(value);
-		if (config.data.labels.length > 20) {
-			config.data.labels.shift();
-			config.data.datasets[0].data.shift();
-		}
-		config.options.scales.xAxes[0].time.max = now;
-		window.chart.update();
+		getPrice().then((value) => {
+			console.log(`Got price ${value.toFixed(2)} from getPrice()`);
+			let now = moment().toDate();
+			config.data.labels.push(now);
+			config.data.datasets[0].data.push(value - initialValue);
+			console.log(`Pushed value ${(value - initialValue).toFixed(2)}`);
+			if (config.data.labels.length > datapointsToKeep) {
+				config.data.labels.shift();
+				config.data.datasets[0].data.shift();
+				config.options.scales.xAxes[0].time.min = config.data.labels[0];
+			} else {
+				let size = config.data.datasets[0].data.length;
+				let compensation = datapointsToKeep - size;
+				let newDate = new Date(config.data.labels[0]);
+				newDate.setSeconds(newDate.getSeconds() - (compensation * updateInterval));
+				config.options.scales.xAxes[0].time.min = newDate;
+			}
+			config.options.scales.xAxes[0].time.max = now;
+			window.chart.update();
+		});
 	};
+
+	function getPrice() {
+		return new Promise(function (resolve, reject) {
+			if (true) { // true == actual usage; false == testing
+				if (apiKey.length === 0) {
+					document.getElementById('canvas').remove();
+					document.getElementById('container').innerHTML = 'You must set the API key.';
+					reject(Error('API key not defined.'));
+				}
+				if (ticker.length === 0) {
+					document.getElementById('canvas').remove();
+					document.getElementById('container').innerHTML = 'You must set the ticker.';
+					reject(Error('Ticker not defined.'));
+				}
+
+				let request = new XMLHttpRequest();
+				request.open('GET', `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`);
+				
+				request.onload = function () {
+					let response = JSON.parse(request.response);
+					let value = parseFloat(response['Realtime Global Securities Quote']['03. Latest Price']);
+					if (value === undefined || isNaN(value)) {
+						let message = `An unexpected error has occured. Either your API key (\`${apiKey}\`) is invalid, your ticker (\`${ticker}\`) is invalid, or the API service (https://www.alphavantage.co) is down.`;
+						document.getElementById('canvas').remove();
+						document.getElementById('container').innerHTML = message;
+						reject(Error(message));
+					}
+					console.log(`Got value ${value} from API.`);
+					resolve(value);
+				}
+
+				request.onerror = function () {
+					reject(Error('Network errored.'));
+				}
+
+				request.send();
+			} else {
+				initialValue = 0.50;
+				config.options.scales.yAxes[0].scaleLabel.labelString = 'Difference from $0.50';
+				resolve(Math.random());
+			}
+		});
+	}
 
 	window.onload = function() {
 		let ctx = document.getElementById("canvas").getContext("2d");
 		window.chart = new Chart(ctx, config);
-		window.setInterval(update, 500);
+		
+		let now = moment()
+		let startMoment = now.subtract(datapointsToKeep * updateInterval, 'seconds');
+		config.options.scales.xAxes[0].time.min = startMoment;
+		config.options.scales.xAxes[0].time.max = now;
+		window.chart.update();
+
+		getPrice().then((value) => {
+			initialValue = value;
+			console.log(`Got initial value: ${value.toFixed(2)}`);
+			config.options.scales.yAxes[0].scaleLabel.labelString = 'Difference from $' + value.toFixed(2);
+			update();
+			window.setInterval(update, updateInterval * 1000);
+		})
+		.catch((e) => {
+			console.log(`An error has occured: ${e}`);
+		});
 	}
 	</script>
 </body>
-
 </html>
