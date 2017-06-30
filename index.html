@@ -10,30 +10,32 @@
 	</div>
 	<script>
 	// CONFIG SECTION HERE
-	let updateInterval = 15; // in seconds
-	let datapointsToKeep = 20;
-	let apiKey = '';
-	let ticker = '';
+	const debug = true;
+
+	const updateInterval = (debug) ? 1 : 15; // in seconds
+	const datapointsToKeep = 20;
+	const apiKey = 'NC9MKFJ56GT5A9DD';
+	const ticker = 'AMD';
 
 
 	Chart.defaults.NegativeTransparentLine = Chart.helpers.clone(Chart.defaults.line);
 	Chart.controllers.NegativeTransparentLine = Chart.controllers.line.extend({
 		update: function() {
-			let min = Math.min.apply(null, this.chart.data.datasets[0].data);
-			let max = Math.max.apply(null, this.chart.data.datasets[0].data);
-			let yScale = this.getScaleForId(this.getDataset().yAxisID);
+			const min = Math.min.apply(null, this.chart.data.datasets[0].data);
+			const max = Math.max.apply(null, this.chart.data.datasets[0].data);
+			const yScale = this.getScaleForId(this.getDataset().yAxisID);
 			let top = yScale.getPixelForValue(max);
-			let zero = yScale.getPixelForValue(0);
+			const zero = yScale.getPixelForValue(0);
 			let bottom = yScale.getPixelForValue(min);
 
-			let ctx = this.chart.chart.ctx;
+			const ctx = this.chart.chart.ctx;
 			if (isNaN(top)) {
 				top = 0;
 			}
 			if (isNaN(bottom)) {
 				bottom = 0;
 			}
-			let gradient = ctx.createLinearGradient(0, top, 0, bottom);
+			const gradient = ctx.createLinearGradient(0, top, 0, bottom);
 			let ratio = Math.min((zero - top) / (bottom - top), 1);
 			if (isNaN(ratio) || ratio <= 0) {
 				ratio = 0.00001;
@@ -48,9 +50,9 @@
 		}
 	});
 
-	let timeFormat = 'h:mm:ss a';
+	const timeFormat = 'h:mm:ss a';
 	let initialValue = 0;
-	let config = {
+	const config = {
 			type: 'NegativeTransparentLine',
 			data: {
 				labels: [],
@@ -91,32 +93,31 @@
 			}
 		};
 
-	function update() {
-		getPrice().then((value) => {
-			console.log(`Got price ${value.toFixed(2)} from getPrice()`);
-			const now = moment().toDate();
-			config.data.labels.push(now);
-			config.data.datasets[0].data.push(value - initialValue);
-			console.log(`Pushed value ${(value - initialValue).toFixed(2)}`);
-			if (config.data.labels.length > datapointsToKeep) {
-				config.data.labels.shift();
-				config.data.datasets[0].data.shift();
-				config.options.scales.xAxes[0].time.min = config.data.labels[0];
-			} else {
-				const size = config.data.datasets[0].data.length;
-				const compensation = datapointsToKeep - size;
-				const newDate = new Date(config.data.labels[0]);
-				newDate.setSeconds(newDate.getSeconds() - (compensation * updateInterval));
-				config.options.scales.xAxes[0].time.min = newDate;
-			}
-			config.options.scales.xAxes[0].time.max = now;
-			window.chart.update();
-		});
+	async function update() {
+		const value = await getPrice();
+		console.log(`Got price ${value.toFixed(2)} from getPrice()`);
+		const now = moment().toDate();
+		config.data.labels.push(now);
+		config.data.datasets[0].data.push(value - initialValue);
+		console.log(`Pushed value ${(value - initialValue).toFixed(2)}`);
+		if (config.data.labels.length > datapointsToKeep) {
+			config.data.labels.shift();
+			config.data.datasets[0].data.shift();
+			config.options.scales.xAxes[0].time.min = config.data.labels[0];
+		} else {
+			const size = config.data.datasets[0].data.length;
+			const compensation = datapointsToKeep - size;
+			const newDate = new Date(config.data.labels[0]);
+			newDate.setSeconds(newDate.getSeconds() - (compensation * updateInterval));
+			config.options.scales.xAxes[0].time.min = newDate;
+		}
+		config.options.scales.xAxes[0].time.max = now;
+		window.chart.update();
 	};
 
 	function getPrice() {
 		return new Promise(function (resolve, reject) {
-			if (true) { // true == actual usage; false == testing
+			if (!debug) { // true == actual usage; false == testing
 				if (apiKey.length === 0) {
 					document.getElementById('canvas').remove();
 					document.getElementById('container').innerHTML = 'You must set the API key.';
@@ -157,26 +158,26 @@
 		});
 	}
 
-	window.onload = function() {
-		let ctx = document.getElementById("canvas").getContext("2d");
+	window.onload = async function() {
+		const ctx = document.getElementById("canvas").getContext("2d");
 		window.chart = new Chart(ctx, config);
 		
-		let now = moment();
-		let startMoment = now.subtract(datapointsToKeep * updateInterval, 'seconds');
+		const now = moment();
+		const startMoment = now.subtract(datapointsToKeep * updateInterval, 'seconds');
 		config.options.scales.xAxes[0].time.min = startMoment;
 		config.options.scales.xAxes[0].time.max = now;
 		window.chart.update();
 
-		getPrice().then((value) => {
+		try {
+			const value = await getPrice();
 			initialValue = value;
 			console.log(`Got initial value: ${value.toFixed(2)}`);
 			config.options.scales.yAxes[0].scaleLabel.labelString = 'Difference from $' + value.toFixed(2);
 			update();
 			window.setInterval(update, updateInterval * 1000);
-		})
-		.catch((e) => {
+		} catch (e) {
 			console.log(`An error has occured: ${e}`);
-		});
+		}
 	}
 	</script>
 </body>
