@@ -10,10 +10,10 @@
 	</div>
 	<script>
 	// CONFIG SECTION HERE
-	var updateInterval = 15; // in seconds
-	var datapointsToKeep = 20;
-	var apiKey = '';
-	var ticker = '';
+	let updateInterval = 15; // in seconds
+	let datapointsToKeep = 20;
+	let apiKey = '';
+	let ticker = '';
 
 
 	Chart.defaults.NegativeTransparentLine = Chart.helpers.clone(Chart.defaults.line);
@@ -49,8 +49,8 @@
 	});
 
 	let timeFormat = 'h:mm:ss a';
-	var initialValue = 0;
-	var config = {
+	let initialValue = 0;
+	let config = {
 			type: 'NegativeTransparentLine',
 			data: {
 				labels: [],
@@ -94,7 +94,7 @@
 	function update() {
 		getPrice().then((value) => {
 			console.log(`Got price ${value.toFixed(2)} from getPrice()`);
-			let now = moment().toDate();
+			const now = moment().toDate();
 			config.data.labels.push(now);
 			config.data.datasets[0].data.push(value - initialValue);
 			console.log(`Pushed value ${(value - initialValue).toFixed(2)}`);
@@ -103,9 +103,9 @@
 				config.data.datasets[0].data.shift();
 				config.options.scales.xAxes[0].time.min = config.data.labels[0];
 			} else {
-				let size = config.data.datasets[0].data.length;
-				let compensation = datapointsToKeep - size;
-				let newDate = new Date(config.data.labels[0]);
+				const size = config.data.datasets[0].data.length;
+				const compensation = datapointsToKeep - size;
+				const newDate = new Date(config.data.labels[0]);
 				newDate.setSeconds(newDate.getSeconds() - (compensation * updateInterval));
 				config.options.scales.xAxes[0].time.min = newDate;
 			}
@@ -128,14 +128,14 @@
 					reject(Error('Ticker not defined.'));
 				}
 
-				let request = new XMLHttpRequest();
+				const request = new XMLHttpRequest();
 				request.open('GET', `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`);
 				
 				request.onload = function () {
-					let response = JSON.parse(request.response);
-					let value = parseFloat(response['Realtime Global Securities Quote']['03. Latest Price']);
+					const response = JSON.parse(request.response);
+					const value = parseFloat(response['Realtime Global Securities Quote']['03. Latest Price']);
 					if (value === undefined || isNaN(value)) {
-						let message = `An unexpected error has occured. Either your API key (\`${apiKey}\`) is invalid, your ticker (\`${ticker}\`) is invalid, or the API service (https://www.alphavantage.co) is down.`;
+						const message = `An unexpected error has occured. Either your API key (\`${apiKey}\`) is invalid, your ticker (\`${ticker}\`) is invalid, or the API service (https://www.alphavantage.co) is down.`;
 						document.getElementById('canvas').remove();
 						document.getElementById('container').innerHTML = message;
 						reject(Error(message));
@@ -161,7 +161,7 @@
 		let ctx = document.getElementById("canvas").getContext("2d");
 		window.chart = new Chart(ctx, config);
 		
-		let now = moment()
+		let now = moment();
 		let startMoment = now.subtract(datapointsToKeep * updateInterval, 'seconds');
 		config.options.scales.xAxes[0].time.min = startMoment;
 		config.options.scales.xAxes[0].time.max = now;
