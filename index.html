@@ -10,13 +10,11 @@
 	</div>
 	<script>
 	// CONFIG SECTION HERE
-	const debug = true;
-
-	const updateInterval = (debug) ? 1 : 15; // in seconds
+	const debug = false; // true == Math.random() generated data; false == actual API calls
+	const updateInterval = 1; // in seconds
 	const datapointsToKeep = 20;
 	const apiKey = '';
 	const ticker = '';
-
 
 	Chart.defaults.NegativeTransparentLine = Chart.helpers.clone(Chart.defaults.line);
 	Chart.controllers.NegativeTransparentLine = Chart.controllers.line.extend({
@@ -52,12 +50,14 @@
 
 	const timeFormat = 'h:mm:ss a';
 	let initialValue = 0;
+	let errorCount = 0;
+	let autoUpdater = undefined;
 	const config = {
 			type: 'NegativeTransparentLine',
 			data: {
 				labels: [],
 				datasets: [{
-					label: 'Stocks',
+					label: debug ? 'Math.random()' : ticker,
 					data: [],
 					yAxisID: 'y-axis-0'
 				}]
@@ -94,72 +94,95 @@
 		};
 
 	async function update() {
-		const value = await getPrice();
-		console.log(`Got price ${value.toFixed(2)} from getPrice()`);
-		const now = moment().toDate();
-		config.data.labels.push(now);
-		config.data.datasets[0].data.push(value - initialValue);
-		console.log(`Pushed value ${(value - initialValue).toFixed(2)}`);
-		if (config.data.labels.length > datapointsToKeep) {
-			config.data.labels.shift();
-			config.data.datasets[0].data.shift();
-			config.options.scales.xAxes[0].time.min = config.data.labels[0];
-		} else {
-			const size = config.data.datasets[0].data.length;
-			const compensation = datapointsToKeep - size;
-			const newDate = new Date(config.data.labels[0]);
-			newDate.setSeconds(newDate.getSeconds() - (compensation * updateInterval));
-			config.options.scales.xAxes[0].time.min = newDate;
+		if (errorCount >= 5) {
+			const message = 'The last five API calls failed. Execution has stopped. Refresh this page to continue.'
+			return blankScreen(message);
 		}
-		config.options.scales.xAxes[0].time.max = now;
-		window.chart.update();
+		try {
+			const value = await getPrice();
+			console.log(`Got price ${value.toFixed(2)} from getPrice()`);
+			const now = moment().toDate();
+			config.data.labels.push(now);
+			config.data.datasets[0].data.push(value - initialValue);
+			console.log(`Pushed value ${(value - initialValue).toFixed(2)}`);
+			if (config.data.labels.length > datapointsToKeep) {
+				config.data.labels.shift();
+				config.data.datasets[0].data.shift();
+				config.options.scales.xAxes[0].time.min = config.data.labels[0];
+			} else {
+				const size = config.data.datasets[0].data.length;
+				const compensation = datapointsToKeep - size;
+				const newDate = new Date(config.data.labels[0]);
+				newDate.setSeconds(newDate.getSeconds() - (compensation * updateInterval));
+				config.options.scales.xAxes[0].time.min = newDate;
+			}
+			config.options.scales.xAxes[0].time.max = now;
+			window.chart.update();
+		} catch (e) {
+			console.error(`An unexpected error has occured while updating: ${e}`);
+		}
 	};
 
 	function getPrice() {
 		return new Promise(function (resolve, reject) {
-			if (!debug) { // true == actual usage; false == testing
+			if (!debug) {
 				if (apiKey.length === 0) {
-					document.getElementById('canvas').remove();
-					document.getElementById('container').innerHTML = 'You must set the API key.';
-					reject(Error('API key not defined.'));
+					const message = 'API key not defined.';
+					blankScreen(message);
+					reject(Error(message));
 				}
 				if (ticker.length === 0) {
-					document.getElementById('canvas').remove();
-					document.getElementById('container').innerHTML = 'You must set the ticker.';
-					reject(Error('Ticker not defined.'));
+					const message = 'Ticker not defined';
+					blankScreen(message);
+					reject(Error(message));
 				}
 
 				const request = new XMLHttpRequest();
 				request.open('GET', `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`);
-				
+
 				request.onload = function () {
 					const response = JSON.parse(request.response);
-					const value = parseFloat(response['Realtime Global Securities Quote']['03. Latest Price']);
-					if (value === undefined || isNaN(value)) {
-						const message = `An unexpected error has occured. Either your API key (\`${apiKey}\`) is invalid, your ticker (\`${ticker}\`) is invalid, or the API service (https://www.alphavantage.co) is down.`;
-						document.getElementById('canvas').remove();
-						document.getElementById('container').innerHTML = message;
+					if (response['Error Message'] !== undefined) {
+						const message = `API returned error message: ${response['Error Message']}`;
+						blankScreen(message);
 						reject(Error(message));
 					}
+					const value = parseFloat(response['Realtime Global Securities Quote']['03. Latest Price']);
+					if (value === undefined || isNaN(value)) {
+						const message = `An unexpected error has occured. The possible reasons for this error are: your API key (\`${apiKey}\`) is invalid, your ticker (\`${ticker}\`) is invalid, the API service (https://www.alphavantage.co) is down, or some other unexpected condition.`;
+						blankScreen(message);
+						reject(Error(message));
+					}
+					errorCount = 0;
 					console.log(`Got value ${value} from API.`);
 					resolve(value);
 				}
 
 				request.onerror = function () {
+					errorCount++;
 					reject(Error('Network errored.'));
 				}
-
 				request.send();
-			} else {
+			} else { // Used when debug == true
 				initialValue = 0.50;
 				config.options.scales.yAxes[0].scaleLabel.labelString = 'Difference from $0.50';
+				errorCount = 0;
 				resolve(Math.random());
 			}
 		});
 	}
 
+	function blankScreen(message) {
+		if (autoUpdater !== undefined) {
+			window.clearInterval(autoUpdater);
+		}
+		document.getElementById('canvas').remove();
+		document.getElementById('container').innerHTML = message;
+		console.error(message);
+	}
+
 	window.onload = async function() {
-		const ctx = document.getElementById("canvas").getContext("2d");
+		const ctx = document.getElementById('canvas').getContext('2d');
 		window.chart = new Chart(ctx, config);
 		
 		const now = moment();
@@ -173,10 +196,14 @@
 			initialValue = value;
 			console.log(`Got initial value: ${value.toFixed(2)}`);
 			config.options.scales.yAxes[0].scaleLabel.labelString = 'Difference from $' + value.toFixed(2);
+			autoUpdater = window.setInterval(update, updateInterval * 1000);
 			update();
-			window.setInterval(update, updateInterval * 1000);
 		} catch (e) {
-			console.log(`An error has occured: ${e}`);
+			if (value === undefined) {
+				blankScreen('Getting the initial value failed. Try again.')
+			} else {
+				blankScreen(e);
+			}
 		}
 	}
 	</script>
